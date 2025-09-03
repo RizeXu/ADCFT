@@ -1,4 +1,4 @@
-# ADCFT (automatic differentiation crystal field theory)
+# ADCrystalField (automatic differentiation crystal field theory)
 
 Using automatic differentiation (AD) to
 - solve the system (including the energy levels and wave functions)
@@ -21,9 +21,12 @@ a reference for the unit convert:
 
 # Derivation
 The Hamiltonian can be written as
-$\mathcal{H}=B_{l}^{m}\mathcal{O}_{l}^{m}$, solve the system, the energies are $E_{i}$.
+$$\mathcal{H}=B_{l}^{m}\mathcal{O}_{l}^{m}$$
+
+solve the system, the energies are $E_{i}$.
 
 The partition function can be written as
+
 $$Z =\left(Z_{0}\right)^{N}=\left(\sum_{i}e^{-\beta E_{i}}\right)^{N}$$
 
 The energy and specific heat can be obtained by `autograd` in computation.
@@ -31,3 +34,5 @@ The energy and specific heat can be obtained by `autograd` in computation.
 $$u=-\frac{1}{N}\frac{\partial\ln Z}{\partial\beta}=-\frac{\partial\ln Z_{0}}{\partial\beta}$$
 
 $$c=\frac{\partial u}{\partial T}=k_{B}\beta^{2}\frac{\partial^{2}\ln Z_{0}}{\partial\beta}$$
+
+if $[c_{{\rm exp}}]={\rm J}\cdot{\rm K}^{-1}\cdot{\rm mol}^{-1}$, $c_{{\rm exp}}=Rc$
