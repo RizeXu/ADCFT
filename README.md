@@ -21,7 +21,9 @@ a reference for the unit convert:
 
 # Derivation
 The Hamiltonian can be written as
-$$\mathcal{H}=B_{l}^{m}\mathcal{O}_{l}^{m}$$
+$$\mathcal{H}=B_{l}^{m}\mathcal{O}_{l}^{m}-\bm{H}\bm{S}$$
+
+where $\bm{H} = g\mu_{B}\bm{B}$ 
 
 solve the system, the energies are $E_{i}$.
 
@@ -35,4 +37,14 @@ $$u=-\frac{1}{N}\frac{\partial\ln Z}{\partial\beta}=-\frac{\partial\ln Z_{0}}{\p
 
 $$c=\frac{\partial u}{\partial T}=k_{B}\beta^{2}\frac{\partial^{2}\ln Z_{0}}{\partial\beta}$$
 
+$$m=\frac{1}{\beta}\frac{\partial\ln Z}{\partial B}$$
+
+$$\chi=\frac{1}{\beta}\frac{\partial^{2}\ln Z}{\partial B^{2}}$$
+
+Moreover, consider the effective magnetic susceptibility:
+
+$$\chi_{{\rm eff}}=\frac{\chi\left(T\right)}{1-\lambda\chi\left(T\right)}+\chi_{0}$$
+
+
 if $[c_{{\rm exp}}]={\rm J}\cdot{\rm K}^{-1}\cdot{\rm mol}^{-1}$, $c_{{\rm exp}}=Rc$
+
