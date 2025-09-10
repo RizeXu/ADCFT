@@ -3,8 +3,8 @@ from Operator import Operator
 from EigenSolver import EigenSolver
 import numpy as np
 import scipy
-from typing import Callable
-
+from typing import Callable, Tuple
+from zipdata import MeaData
 def build_fieldx(B):
     """
     The function to build H
@@ -262,31 +262,109 @@ def fun_losschi(a: torch.Tensor,
     chip = chi / (1 - lam * chi) + chi0
     loss = torch.sum((chip - chiexp) ** 2)
     dloss, = torch.autograd.grad(loss, a)
+
     return loss.detach().numpy(), dloss.detach().numpy()
 
-def fit_c(a0, kT, B0, field_func, cexp, op : Operator, CEFparam_func, method='L-BFGS-B', bounds=None):
+def fun_loss(a: torch.Tensor,
+             field_func,
+             op,
+             CEFparam_func,
+             cdata: Tuple[MeaData, ...] = (),
+             chidata : Tuple[MeaData, ...] = (),
+             weight = 1.0):
     r"""
-    fit the CFT parameters
+    a function to calculate the loss function of specific heat, susceptibility
     Args:
-        a0: initial parameters
-        kT: temperature
-        B0 (torch.Tensor): the magnetic field
+        a (torch.Tensor): the parameters tensor, including CEF parameters and $\lambda$ and $\chi_{0}$
         field_func (Callable[[torch.Tensor], torch.Tensor]): the field function to map B0 -> g μB B0
-        cexp: reference specific heat
-        op (Operator): steven operators
+        op (Operator): the steven operators
         CEFparam_func (function): the function map a->B, where B is coefficient for steven operators
-        method: method for minimization
-        bounds: bounds for minimization
+        cdata (Tuple[MeaData, ...]): the cv data to fit
+        chidata (Tuple[MeaData, ...]): the chi data to fit
+        weight : the weight of the loss function
     Returns:
-        res
+        loss (torch.Tensor): the loss.
+        dloss (torch.Tensor): the derivative of the loss.
+
     """
-    # TODO : estimate the bounds with the real material
+    loss = np.array([0.0])
+    dloss = np.zeros_like(a)
+    num = a.shape[0]
+    clen = len(cdata)
+    chilen = len(chidata)
+    fitlen = clen + chilen
+
+    if weight == 1.0:
+        w = np.ones(fitlen)
+    else:
+        if isinstance(weight, torch.Tensor):
+            w = weight.detach().numpy()
+        elif isinstance(weight, np.ndarray):
+            w = weight
+        else:
+            raise ValueError("weight must be torch.Tensor or np.ndarray")
+        if w.size != fitlen:
+            raise ValueError("weight size must be equal to fitlen")
+
+    aCEF = a[:num - 2]
+    if len(cdata) != 0:
+        for id, chidata0 in enumerate(cdata):
+            loss0, dloss0 = fun_lossc(aCEF,
+                                      chidata0.kT,
+                                      chidata0.B0,
+                                      field_func,
+                                      chidata0.measure,
+                                      op,
+                                      CEFparam_func)
+            loss += w[id] * loss0
+            dloss[:num - 2] += w[id] * dloss0
+
+    if len(chidata) != 0:
+        for id, chidata0 in enumerate(chidata):
+            loss0, dloss0 = fun_losschi(a,
+                                        chidata0.kT,
+                                        chidata0.B0,
+                                        field_func,
+                                        chidata0.measure,
+                                        op,
+                                        CEFparam_func)
+            loss += w[id + clen] * loss0
+            dloss += w[id + clen] * dloss0
+
+    return loss, dloss
+
+def fit(a0,
+        field_func,
+        op,
+        CEFparam_func,
+        cdata: Tuple[MeaData, ...] = (),
+        chidata : Tuple[MeaData, ...] = (),
+        weight = 1.0,
+        method='L-BFGS-B', bounds=None):
+    r"""
+        a function to fit specific heat and susceptibility
+        Args:
+            a0: the initial parameters, including CEF parameters and $\lambda$ and $\chi_{0}$
+            field_func (Callable[[torch.Tensor], torch.Tensor]): the field function to map B0 -> g μB B0
+            op (Operator): the steven operators
+            CEFparam_func (function): the function map a->B, where B is coefficient for steven operators
+            cdata (Tuple[MeaData, ...]): the cv data to fit
+            chidata (Tuple[MeaData, ...]): the chi data to fit
+            weight : the weight of the loss function
+            method (str): the optimization method
+            bounds (Tuple[float, float]): the bounds of the optimization
+        Returns:
+            loss (torch.Tensor): the loss.
+            dloss (torch.Tensor): the derivative of the loss.
+
+    """
+
     if bounds is None:
         bounds = list(zip(-np.ones(a0.shape[0]), np.ones(a0.shape[0])))
 
-    res = scipy.optimize.minimize(fun_lossc,
+    res = scipy.optimize.minimize(fun_loss,
                                   a0,
-                                  args=(kT, B0, field_func, cexp, op, CEFparam_func),
+                                  args=(field_func, op, CEFparam_func, cdata, chidata, weight),
                                   method=method,
                                   bounds=bounds,
                                   jac=True, tol=1e-20)

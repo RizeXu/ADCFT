@@ -2,15 +2,17 @@
 
 Using automatic differentiation (AD) to
 - solve the system (including the energy levels and wave functions)
-- calculate energy and specific heat
-- fit crystal field theory (CFT) parameters $B[l, m]$
+- calculate energy, specific heat, magnetization and susceptibility
+- fit crystal field theory (CFT) parameters $B[l, m]$ with both specific heat and susceptibility experimental data
 
 # Usage
-Shown in `main.ipynb`, the key step is custom a function `build_B()` to build the $B[l,m]$ list, this function is a map from the actual parameters $a$ to $B[l,m]$:
-$${\rm build\_B}(a)\mapsto B$$
+Shown in `main_fit.ipynb`, the key step is custom a function `build_CEFparam(a)` to build the $B[l,m]$ list, this function is a map from the actual parameters $a$ to $B[l,m]$:
+$$a\mapsto B[l, m]$$ and `build_field(B)` to build $$B \mapsto g \mu_{\rm B} B$$
+
+where $B$ is the magnetic field
 
 Note that in the example jupyter
-- The unit, temperature $[T] = \rm{K}$, specific heat $[c] = \rm{arb.unit}$, CFT parameters $[B] = \rm{K}$
+- The unit, temperature $[T] = \rm{K}$, specific heat $[c] = \rm{arb.unit}$, CFT parameters $[B[l, m]] = \rm{K}$
 - Before fit, a symmetry analysis is needed for lattice, and consider which CFT parameters are valid
 - Only $l\leq 2s$ is valid, otherwise, steven operators $\mathcal{O}[l, m]$ are identically zeros for all $m$
 
@@ -45,6 +47,4 @@ Moreover, consider the effective magnetic susceptibility:
 
 $$\chi_{{\rm eff}}=\frac{\chi\left(T\right)}{1-\lambda\chi\left(T\right)}+\chi_{0}$$
 
-
 if $[c_{{\rm exp}}]={\rm J}\cdot{\rm K}^{-1}\cdot{\rm mol}^{-1}$, $c_{{\rm exp}}=Rc$
-
