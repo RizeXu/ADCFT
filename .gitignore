@@ -1,0 +1,60 @@
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+*.x
+
+# Figures
+*.png
+
+# Folders
+xbuild
+build
+bin
+cmake-build-*
+.vscode
+.idea
+results
+python/inputs
+.ipynb_checkpoints
+dump
+data
+exe
+
+#temporarily keep the doxygen files private
+docs/html
+docs/latex
+
+# Other files
+.DS_Store
+*.nb
+*.lyx
+*.dat
+*~
+*.json
+*.txt
