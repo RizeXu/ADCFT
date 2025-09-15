@@ -5,7 +5,8 @@ import numpy as np
 import scipy
 from typing import Callable, Tuple
 from zipdata import MeaData
-def build_fieldx(B):
+
+def build_fieldz(B):
     """
     The function to build H
     default for z-axis
@@ -72,9 +73,12 @@ def solve(op : Operator,
     # w, u = torch.linalg.eigh(Ham)
 
     return w, u
+
+# solve_ = torch.vmap(solve, in_dims=(None, 0, None, None, None))
+
 def measure_uc(op : Operator, kT : torch.Tensor,
                B0 : torch.Tensor = torch.tensor([]),
-               field_func:Callable[[torch.Tensor], torch.Tensor]=build_fieldx,
+               field_func:Callable[[torch.Tensor], torch.Tensor]=build_fieldz,
                B2 : torch.Tensor = torch.tensor([]),
                B4 : torch.Tensor = torch.tensor([]),
                B6 : torch.Tensor = torch.tensor([])):
@@ -105,9 +109,31 @@ def measure_uc(op : Operator, kT : torch.Tensor,
 
     return u, c
 
+# def measure_mchi(op : Operator, kT : torch.Tensor,
+#                  B0 : torch.Tensor = torch.tensor([]),
+#                  field_func:Callable[[torch.Tensor], torch.Tensor]=build_fieldx,
+#                  B2 : torch.Tensor = torch.tensor([]),
+#                  B4 : torch.Tensor = torch.tensor([]),
+#                  B6 : torch.Tensor = torch.tensor([])):
+#     field_func_vmap = torch.vmap(field_func, in_dims=0)
+#     B = (B0 * torch.ones_like(kT)).requires_grad_(True)
+#     B1 = field_func_vmap(B.unsqueeze(-1))   # (b, ...)
+#     # UserWarning: There is a performance drop because we have not yet implemented the batching rule for aten::linalg_eigh.
+#
+#     w, _ = solve_(op, B1, B2, B4, B6)   # (b ,n)
+#     β = (1 / kT).requires_grad_(True)
+#     lnz = torch.logsumexp(-torch.einsum('bn,b->bn', w, β), dim=1)   # (b)
+#     dlnz, = torch.autograd.grad(lnz, B, grad_outputs=torch.ones_like(B), create_graph=True)
+#     d2lnz, = torch.autograd.grad(dlnz, B, grad_outputs=torch.ones_like(B), create_graph=True)
+#
+#     m = kT * dlnz
+#     chi = kT * d2lnz
+#
+#     return m, chi
+
 def measure_mchi0(op : Operator, kT0 : torch.Tensor,
                   B0 : torch.Tensor = torch.tensor([]),
-                  field_func:Callable[[torch.Tensor], torch.Tensor]=build_fieldx,
+                  field_func:Callable[[torch.Tensor], torch.Tensor]=build_fieldz,
                   B2 : torch.Tensor = torch.tensor([]),
                   B4 : torch.Tensor = torch.tensor([]),
                   B6 : torch.Tensor = torch.tensor([])):
@@ -123,45 +149,9 @@ def measure_mchi0(op : Operator, kT0 : torch.Tensor,
     chi = kT0 * d2lnz
     return m, chi
 
-# measure_mchi = torch.vmap(measure_mchi0, in_dims=(None, 0, None, None, None, None, None))
-#
-# def measure0(op : Operator, kT0 : torch.Tensor,
-#                   B0 : torch.Tensor = torch.tensor([]),
-#                   field_func:Callable[[torch.Tensor], torch.Tensor]=build_fieldx,
-#                   B2 : torch.Tensor = torch.tensor([]),
-#                   B4 : torch.Tensor = torch.tensor([]),
-#                   B6 : torch.Tensor = torch.tensor([])):
-#     B1 = field_func(B0)
-#     w, _ = solve(op, B1, B2, B4, B6)
-#     β = (1 / kT0)
-#     print(β.shape)
-#
-#     lnz = torch.logsumexp(-β.unsqueeze(-1) * w, dim=1)
-#     return lnz
-#
-# measure = torch.vmap(measure0, in_dims=(None, 0, None, None, None, None, None))
-#
-# def measure_mchi(op : Operator, kT : torch.Tensor,
-#                  B0 : torch.Tensor = torch.tensor([]),
-#                  field_func:Callable[[torch.Tensor], torch.Tensor]=build_fieldx,
-#                  B2 : torch.Tensor = torch.tensor([]),
-#                  B4 : torch.Tensor = torch.tensor([]),
-#                  B6 : torch.Tensor = torch.tensor([])):
-#
-#     B0 = (B0).requires_grad_(True)
-#
-#     lnz = measure(op, kT.unsqueeze(-1), B0, field_func, B2, B4, B6)
-#     print(lnz)
-#     dlnz, = torch.autograd.grad(lnz, B0, grad_outputs=torch.ones_like(lnz), create_graph=True)
-#     d2lnz, = torch.autograd.grad(dlnz, B0, grad_outputs=torch.ones_like(lnz), create_graph=True)
-#
-#     m = kT * dlnz
-#     chi = kT * d2lnz
-#     return m, chi
-
 def measure_mchi(op : Operator, kT : torch.Tensor,
                  B0 : torch.Tensor = torch.tensor([]),
-                 field_func:Callable[[torch.Tensor], torch.Tensor]=build_fieldx,
+                 field_func:Callable[[torch.Tensor], torch.Tensor]=build_fieldz,
                  B2 : torch.Tensor = torch.tensor([]),
                  B4 : torch.Tensor = torch.tensor([]),
                  B6 : torch.Tensor = torch.tensor([])):
@@ -182,9 +172,15 @@ def measure_mchi(op : Operator, kT : torch.Tensor,
     num = kT.shape[0]
     m = torch.zeros(num)
     chi = torch.zeros(num)
-    B = (B0).requires_grad_(True)
-    for id, kT0 in enumerate(kT):
-        m[id], chi[id] = measure_mchi0(op, kT0.unsqueeze(-1), B, field_func, B2, B4, B6)
+    B = B0.requires_grad_(True)
+    for kT_id, kT0 in enumerate(kT):
+        m[kT_id], chi[kT_id] = measure_mchi0(op,
+                                       kT0.unsqueeze(-1),
+                                       B,
+                                       field_func,
+                                       B2,
+                                       B4,
+                                       B6)
     return m, chi
 
 def fun_lossc(a: torch.Tensor,
@@ -308,12 +304,12 @@ def fun_loss(a: torch.Tensor,
 
     aCEF = a[:num - 2]
     if len(cdata) != 0:
-        for id, chidata0 in enumerate(cdata):
+        for id, cdata0 in enumerate(cdata):
             loss0, dloss0 = fun_lossc(aCEF,
-                                      chidata0.kT,
-                                      chidata0.B0,
+                                      cdata0.kT,
+                                      cdata0.B0,
                                       field_func,
-                                      chidata0.measure,
+                                      cdata0.measure,
                                       op,
                                       CEFparam_func)
             loss += w[id] * loss0

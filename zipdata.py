@@ -1,16 +1,17 @@
 import torch
 import numpy as np
 from typing import Optional
-
 class MeaData:
     kT: Optional[torch.Tensor]
     measure: Optional[torch.Tensor]
     B0: Optional[torch.Tensor]
+    axis: str
 
     def __init__(self):
         self.kT = None
         self.measure = None
         self.B0 = None
+        self.axis = 'z'
 
     def create(self, kT: torch.Tensor, measure: torch.Tensor, B0: Optional[torch.Tensor|float]):
         r"""
@@ -19,6 +20,7 @@ class MeaData:
             kT (torch.Tensor): the temperature
             measure (torch.Tensor): measurement
             B0 (Optional[torch.Tensor|float]): the magnetic field
+            axis (str): the axis is valid if measure is $\chi$
 
         Returns:
 
@@ -33,12 +35,13 @@ class MeaData:
         self.B0 = B0
         return
 
-    def read(self, filename: str, B0: Optional[torch.Tensor|float]):
+    def read(self, filename: str, B0: Optional[torch.Tensor|float], axis: str = 'z'):
         r"""
         create the data from file
         Args:
-            filename (str): #(1):kT (2):c
-            B0 (Optional[torch.Tensor|float]): magnetic field
+            filename (str): the filename
+            B0 (Optional[torch.Tensor|float]): the magnetic field
+            axis (str): the axis of the magnetic field
         """
         # TODO: check the header of the file
         if isinstance(B0, float):
@@ -48,6 +51,7 @@ class MeaData:
         self.kT = torch.from_numpy(data[:, 0])
         self.measure = torch.from_numpy(data[:, 1])
         self.B0 = B0
+        self.axis = axis
 
         return
 
@@ -60,6 +64,6 @@ class MeaData:
             raise ValueError("unknown variable")
 
         np.savetxt(filename, np.c_[self.kT.detach().numpy(), self.measure.detach().numpy()], delimiter='\t', header='(1)\t(2)\nkT\tc')
-        print(f"data is successfully written into {filename}")
+        print(f"data is successfully written into \"{filename}\"")
 
         return

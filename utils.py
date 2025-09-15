@@ -1,5 +1,5 @@
 def print_state(N, enr, psi):
-    header = f"{'Eigenvalue':^22} | " + " | ".join([f"{f'|{0.5 * (i - 1)}>':^15}" for i in range(N, -N + 1, -1)])
+    header = f"{'Eigenvalue':^22} | " + " | ".join([f"{f'|{0.5 * i}>':^15}" for i in range(N - 1, -N, -2)])
     print(header)
     print("-" * len(header))
 
