@@ -13,7 +13,7 @@ class MeaData:
         self.B0 = None
         self.axis = 'z'
 
-    def create(self, kT: torch.Tensor, measure: torch.Tensor, B0: Optional[torch.Tensor|float]):
+    def create(self, kT: torch.Tensor, measure: torch.Tensor, B0: Optional[torch.Tensor|float], axis: str = 'z'):
         r"""
         create the data from list
         Args:
