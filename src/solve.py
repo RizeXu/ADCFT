@@ -1,0 +1,185 @@
+import torch
+import numpy as np
+from typing import Callable
+
+from src.Operator import Operator
+from src.EigenSolver import EigenSolver
+from src.unit import unit
+
+
+
+def build_fieldz(B):
+    """
+    The function to build H
+    default for z-axis
+    Args:
+        B: the magnetic field
+
+    Returns:
+        H: g μB B
+
+    """
+
+    zero = torch.tensor([0.0])
+    g = torch.tensor([1.0, 1.0, 1.0])
+
+    H = torch.cat([zero, zero, B])
+    H = unit.μB * g * H
+    return H
+
+def solve(op : Operator,
+          B1 : torch.Tensor = torch.tensor([]),
+          B2 : torch.Tensor = torch.tensor([]),
+          B4 : torch.Tensor = torch.tensor([]),
+          B6 : torch.Tensor = torch.tensor([])):
+    r"""
+    solve the systems with the steven operators
+    Args:
+        op (Operator): the steven operator
+        B1 (torch.Tensor): the coefficient for O[1, m], also the magnetic field, g μB B
+        B2 (torch.Tensor): the coefficient for O[2,m]
+        B4 (torch.Tensor): the coefficient for O[4,m]
+        B6 (torch.Tensor): the coefficient for O[6,m]
+    Returns:
+        w (torch.Tensor): the eigen energy
+        v (torch.Tensor): the eigen states
+    """
+    Ham = torch.zeros((op.N, op.N), dtype=torch.complex64)
+
+    if isinstance(B1, np.ndarray):
+        B1 = torch.tensor(B1, dtype=torch.complex64)
+    if isinstance(B2, np.ndarray):
+        B2 = torch.tensor(B2, dtype=torch.complex64)
+    if isinstance(B4, np.ndarray):
+        B4 = torch.tensor(B4, dtype=torch.complex64)
+    if isinstance(B6, np.ndarray):
+        B6 = torch.tensor(B6, dtype=torch.complex64)
+
+    if B1.numel() != 0:
+        Ham0 = torch.einsum('i,ijk->jk', B1.to(torch.complex64), op.O1)
+        Ham = Ham + Ham0
+        # Ham += torch.einsum('i,ijk->jk', B1.to(torch.complex64), op.O1)
+    if B2.numel() != 0:
+        Ham += torch.einsum('i,ijk->jk', B2.to(torch.complex64), op.O2)
+    if B4.numel() != 0:
+        Ham += torch.einsum('i,ijk->jk', B4.to(torch.complex64), op.O4)
+    if B6.numel() != 0:
+        Ham += torch.einsum('i,ijk->jk', B6.to(torch.complex64), op.O6)
+
+    Ham = 0.5 * (Ham + Ham.T.conj())
+
+    # assert torch.dist(H.T.conj(), H) < 1.0e-6
+
+    w, u = EigenSolver.apply(Ham)
+    # w, u = torch.linalg.eigh(Ham)
+
+    return w, u
+
+# solve_ = torch.vmap(solve, in_dims=(None, 0, None, None, None))
+
+def measure_uc(op : Operator, kT : torch.Tensor,
+               B0 : torch.Tensor = torch.tensor([]),
+               field_func:Callable[[torch.Tensor], torch.Tensor]=build_fieldz,
+               B2 : torch.Tensor = torch.tensor([]),
+               B4 : torch.Tensor = torch.tensor([]),
+               B6 : torch.Tensor = torch.tensor([])):
+    r"""
+    measure the energy and specific heat with steven operators
+    Args:
+        op (Operator): the steven operator
+        kT (torch.Tensor): the temperature
+        B0 (torch.Tensor): the magnetic field
+        field_func (Callable[[torch.Tensor], torch.Tensor]): the field function to map B0 -> g μB B0
+        B2 (torch.Tensor): the coefficient for O[2,m]
+        B4 (torch.Tensor): the coefficient for O[4,m]
+        B6 (torch.Tensor): the coefficient for O[6,m]
+    Returns:
+        u (torch.Tensor): the energy
+        c (torch.Tensor): the specific heat
+    """
+    B1 = field_func(B0)
+    w, _ = solve(op, B1, B2, B4, B6)
+    β = (1 / kT).requires_grad_(True)
+
+    lnz = torch.logsumexp(-β.unsqueeze(-1) * w, dim=1)
+    dlnz, = torch.autograd.grad(lnz, β, grad_outputs=torch.ones(β.shape[0]),create_graph=True)
+    d2lnz, = torch.autograd.grad(dlnz, β, grad_outputs=torch.ones(β.shape[0]),create_graph=True)
+
+    u = -dlnz
+    c = d2lnz * β * β
+
+    return u, c
+
+# def measure_mchi(op : Operator, kT : torch.Tensor,
+#                  B0 : torch.Tensor = torch.tensor([]),
+#                  field_func:Callable[[torch.Tensor], torch.Tensor]=build_fieldx,
+#                  B2 : torch.Tensor = torch.tensor([]),
+#                  B4 : torch.Tensor = torch.tensor([]),
+#                  B6 : torch.Tensor = torch.tensor([])):
+#     field_func_vmap = torch.vmap(field_func, in_dims=0)
+#     B = (B0 * torch.ones_like(kT)).requires_grad_(True)
+#     B1 = field_func_vmap(B.unsqueeze(-1))   # (b, ...)
+#     # UserWarning: There is a performance drop because we have not yet implemented the batching rule for aten::linalg_eigh.
+#
+#     w, _ = solve_(op, B1, B2, B4, B6)   # (b ,n)
+#     β = (1 / kT).requires_grad_(True)
+#     lnz = torch.logsumexp(-torch.einsum('bn,b->bn', w, β), dim=1)   # (b)
+#     dlnz, = torch.autograd.grad(lnz, B, grad_outputs=torch.ones_like(B), create_graph=True)
+#     d2lnz, = torch.autograd.grad(dlnz, B, grad_outputs=torch.ones_like(B), create_graph=True)
+#
+#     m = kT * dlnz
+#     chi = kT * d2lnz
+#
+#     return m, chi
+
+def measure_mchi0(op : Operator, kT0 : torch.Tensor,
+                  B0 : torch.Tensor = torch.tensor([]),
+                  field_func:Callable[[torch.Tensor], torch.Tensor]=build_fieldz,
+                  B2 : torch.Tensor = torch.tensor([]),
+                  B4 : torch.Tensor = torch.tensor([]),
+                  B6 : torch.Tensor = torch.tensor([])):
+    B1 = field_func(B0)
+    w, _ = solve(op, B1, B2, B4, B6)
+    β = (1 / kT0)
+
+    lnz = torch.logsumexp(-β.unsqueeze(-1) * w, dim=1)
+    dlnz, = torch.autograd.grad(lnz, B0, create_graph=True)
+    d2lnz, = torch.autograd.grad(dlnz, B0, create_graph=True)
+
+    m = kT0 * dlnz
+    chi = kT0 * d2lnz
+    return m, chi
+
+def measure_mchi(op : Operator, kT : torch.Tensor,
+                 B0 : torch.Tensor = torch.tensor([]),
+                 field_func:Callable[[torch.Tensor], torch.Tensor]=build_fieldz,
+                 B2 : torch.Tensor = torch.tensor([]),
+                 B4 : torch.Tensor = torch.tensor([]),
+                 B6 : torch.Tensor = torch.tensor([])):
+    r"""
+    measure the energy and specific heat with steven operators
+    Args:
+        op (Operator): the steven operator
+        kT (torch.Tensor): the temperature
+        B0 (torch.Tensor): the magnetic field
+        field_func (Callable[[torch.Tensor], torch.Tensor]): the field function to map B0 -> g μB B0
+        B2 (torch.Tensor): the coefficient for O[2,m]
+        B4 (torch.Tensor): the coefficient for O[4,m]
+        B6 (torch.Tensor): the coefficient for O[6,m]
+    Returns:
+        m (torch.Tensor): the magnetization
+        chi (torch.Tensor): the magnetic susceptibility
+    """
+    num = kT.shape[0]
+    m = torch.zeros(num)
+    chi = torch.zeros(num)
+    B = B0.requires_grad_(True)
+    for kT_id, kT0 in enumerate(kT):
+        m[kT_id], chi[kT_id] = measure_mchi0(op,
+                                       kT0.unsqueeze(-1),
+                                       B,
+                                       field_func,
+                                       B2,
+                                       B4,
+                                       B6)
+    return m, chi

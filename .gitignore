@@ -39,6 +39,7 @@ bin
 cmake-build-*
 .vscode
 .idea
+.venv
 results
 python/inputs
 .ipynb_checkpoints
