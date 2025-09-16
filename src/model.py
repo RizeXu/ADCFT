@@ -8,8 +8,10 @@ from src.unit import unit
 from src.zipdata import MeaData
 from src.solve import solve, measure_uc, measure_mchi
 from src.utils import print_state
+
 zero = torch.tensor([0.0])
 
+# TODO : measure SF
 class Model:
     cdata: Tuple[MeaData,...]
     chidata: Tuple[MeaData,...]
@@ -71,7 +73,7 @@ class Model:
         else:
             raise ValueError(f'axis {axis} is not supported.')
 
-    def set_aCEF(self, B2, B4, B6):
+    def set_aCEF(self, B2: torch.Tensor, B4: torch.Tensor, B6: torch.Tensor):
         """
         set the aCEF parameters
         Args:
@@ -165,8 +167,9 @@ class Model:
             raise ValueError('the axis must be x or y or z')
 
         u, c = measure_uc(self.op, kT, B0, build_field, self.B2, self.B4, self.B6)
+
         if in_unit == 'exp':
-            # u =
+            u = u / unit.kB
             c = c * unit.R
         return u, c
 
@@ -215,18 +218,18 @@ class Model:
 
         return m, chi
 
-    @staticmethod
     def build_CEFparam(self, a: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         pass
 
     def set_a(self, a: torch.Tensor):
         r"""
-        set the CEF parameters using the defined build_CEFparam function
+        set the CEF parameters using the built-in build_CEFparam function
         Args:
             a: the input parameters
 
         """
         self.B2, self.B4, self.B6 = self.build_CEFparam(a)
+
         self.flag_aCEF = True
         return
 
@@ -246,9 +249,13 @@ class Model:
 
         self.λ = x[-2]
         self.chi0 = x[-1]
+
         return
 
-    def read_cdata(self, filename: str, B0: Optional[torch.Tensor|float], axis: str = 'z'):
+    def read_cdata(self,
+                   filename: str,
+                   B0: Optional[torch.Tensor|float],
+                   axis: str = 'z'):
         r"""
         Read the heat specific data from file
         Args:
@@ -259,8 +266,12 @@ class Model:
         cdata_ = MeaData()
         cdata_.read(filename, B0, axis)
         self.cdata = self.cdata + (cdata_,)
+        return
 
-    def read_chidata(self, filename: str, B0: Optional[torch.Tensor|float], axis: str = 'z'):
+    def read_chidata(self,
+                     filename: str,
+                     B0: Optional[torch.Tensor|float],
+                     axis: str = 'z'):
         r"""
             Read the heat specific data from file
             Args:
@@ -271,6 +282,7 @@ class Model:
         chidata_ = MeaData()
         chidata_.read(filename, B0, axis)
         self.chidata = self.chidata + (chidata_,)
+        return
 
     def fun_lossc(self,
                   a: torch.Tensor,
@@ -297,10 +309,12 @@ class Model:
         """
         if in_unit not in ('theo', 'exp'):
             raise ValueError('the unit of output in the heat specification must be exp or theo')
+
         if not isinstance(a, torch.Tensor):
             a = torch.tensor(a, dtype=torch.float64, requires_grad=True)
         else:
             a = a.clone().detach().requires_grad_(True)
+
         B2, B4, B6 = self.build_CEFparam(a)
 
         op = self.op
@@ -433,7 +447,7 @@ class Model:
                 dloss[:num - 2] += w[cdata_id] * dloss0
 
         if chilen != 0:
-            for id, chidata0 in enumerate(self.chidata):
+            for chidata_id, chidata0 in enumerate(self.chidata):
                 loss0, dloss0 = self.fun_losschi(a,
                                                  chidata0.kT,
                                                  chidata0.B0,
@@ -441,8 +455,8 @@ class Model:
                                                  chidata0.axis,
                                                  eff,
                                                  in_unit)
-                loss += w[id + clen] * loss0
-                dloss += w[id + clen] * dloss0
+                loss += w[chidata_id + clen] * loss0
+                dloss += w[chidata_id + clen] * dloss0
 
         return loss, dloss
 
