@@ -14,7 +14,10 @@ class MeaData:
         self.B0 = None
         self.axis = 'z'
 
-    def create(self, kT: torch.Tensor, measure: torch.Tensor, B0: Optional[torch.Tensor|float], axis: str = 'z'):
+    def create(self, kT: torch.Tensor,
+               measure: torch.Tensor,
+               B0: Optional[torch.Tensor|float],
+               axis: str = 'z'):
         r"""
         create the data from list
         Args:
@@ -34,9 +37,12 @@ class MeaData:
         self.kT = kT
         self.measure = measure
         self.B0 = B0
+        self.axis = axis
         return
 
-    def read(self, filename: str, B0: Optional[torch.Tensor|float], axis: str = 'z'):
+    def read(self, filename: str,
+             B0: Optional[torch.Tensor|float],
+             axis: str = 'z'):
         r"""
         create the data from file
         Args:
@@ -64,7 +70,9 @@ class MeaData:
         else:
             raise ValueError("unknown variable")
 
-        np.savetxt(filename, np.c_[self.kT.detach().numpy(), self.measure.detach().numpy()], delimiter='\t', header='(1)\t(2)\nkT\tc')
+        np.savetxt(filename,
+                   np.c_[self.kT.detach().numpy(), self.measure.detach().numpy()],
+                   delimiter='\t', header='(1)\t(2)\nkT\tc')
         print(f"data is successfully written into \"{filename}\"")
 
         return
