@@ -40,7 +40,8 @@ class MeaData:
         self.axis = axis
         return
 
-    def read(self, filename: str,
+    def read(self,
+             filename: str,
              B0: Optional[torch.Tensor|float],
              axis: str = 'z'):
         r"""

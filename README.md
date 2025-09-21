@@ -12,6 +12,15 @@ Note that in the example jupyter
 - Before fit, a symmetry analysis is needed for lattice, and consider which CFT parameters are valid
 - Only $l\leq 2s$ is valid, otherwise, steven operators $\mathcal{O}[l, m]$ are identically zeros for all $m$
 
+## examples
+
+- `main_fit_c.ipynb`
+  - only fit with heat specific data to find CEF parameters
+  - with fitted CEF parameters, fit $\lambda$ and $\chi_{0}$ with susceptibility data
+
+- `main_fit_cchi.ipynb`
+  - fit with heat specific and susceptibility data at the same time to find CEF parameters, $\lambda$ and $\chi_{0}$
+
 ## unit
 the code use the unit as follows:
 ![see unit](./figure/unit.png)

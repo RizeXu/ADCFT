@@ -17,6 +17,12 @@ class Model:
     chidata: Tuple[MeaData,...]
 
     def __init__(self, spin: float, g : torch.Tensor):
+        r"""
+        build a model
+        Args:
+            spin (float): spin
+            g (torch.Tensor): g-tensor
+        """
         self.spin = spin
         self.g = g
         self.op = Operator(spin)
@@ -239,8 +245,6 @@ class Model:
         Args:
             res: the optimal result
 
-        Returns:
-
         """
         x = torch.tensor(res.x)
         num = x.shape[0]
@@ -250,6 +254,19 @@ class Model:
         self.λ = x[-2]
         self.chi0 = x[-1]
 
+        return
+
+    def set_fiteffectiveres(self, res):
+        r"""
+        set the effective parameters of λ and chi0
+        Args:
+            res: the optimal result
+
+        """
+        x = torch.tensor(res.x)
+        assert x.shape[0] == 2, "the number of fit effective parameters should be 2"
+        self.λ = x[0]
+        self.chi0 = x[1]
         return
 
     def read_cdata(self,
@@ -273,11 +290,11 @@ class Model:
                      B0: Optional[torch.Tensor|float],
                      axis: str = 'z'):
         r"""
-            Read the heat specific data from file
-            Args:
-                filename (str): the filename
-                B0 (Optional[torch.Tensor|float]): the magnetic field
-                axis (str): the axis of the magnetic field
+        Read the heat specific data from file
+        Args:
+            filename (str): the filename
+            B0 (Optional[torch.Tensor|float]): the magnetic field
+            axis (str): the axis of the magnetic field
         """
         chidata_ = MeaData()
         chidata_.read(filename, B0, axis)
@@ -347,23 +364,23 @@ class Model:
                     eff: bool = True,
                     in_unit: str = 'exp'):
         r"""
-            the loss of the reference specific heat
-            the effective magnetic susceptibility is given by
-            $$\chi_{{\rm eff}}=\frac{\chi\left(T\right)}{1-\lambda\chi\left(T\right)}+\chi_{0}$$
+        the loss of the reference susceptibility
+        the effective magnetic susceptibility is given by
+        $$\chi_{{\rm eff}}=\frac{\chi\left(T\right)}{1-\lambda\chi\left(T\right)}+\chi_{0}$$
 
-            Args:
-                a (torch.Tensor): the parameters tensor, including CEF parameters and $\lambda$ and $\chi_{0}$
-                kT (torch.Tensor): the temperature
-                B0 (torch.Tensor): the magnetic field
-                chiexp (torch.Tensor): the magnetic susceptibility
-                axis (str): the axis of the magnetic field
-                eff (bool): whether to use the effective susceptibility
-                in_unit (str): use the unit in theo (theory) or experiment (exp), default is 'exp'
+        Args:
+            a (torch.Tensor): the parameters tensor, including CEF parameters and $\lambda$ and $\chi_{0}$
+            kT (torch.Tensor): the temperature
+            B0 (torch.Tensor): the magnetic field
+            chiexp (torch.Tensor): the magnetic susceptibility
+            axis (str): the axis of the magnetic field
+            eff (bool): whether to use the effective susceptibility
+            in_unit (str): use the unit in theo (theory) or experiment (exp), default is 'exp'
 
-            Returns:
-                loss (torch.Tensor): the loss.
-                dloss (torch.Tensor): the derivative of the loss.
-            """
+        Returns:
+            loss (torch.Tensor): the loss.
+            dloss (torch.Tensor): the derivative of the loss.
+        """
 
         if in_unit not in ('theo', 'exp'):
             raise ValueError('the unit of output in the heat specification must be exp or theo')
@@ -398,6 +415,48 @@ class Model:
 
         loss = torch.mean((chip - chiexp) ** 2)
         dloss, = torch.autograd.grad(loss, a)
+
+        return loss.detach().numpy(), dloss.detach().numpy()
+
+    def fun_losseffective(self,
+                          a: torch.Tensor,
+                          chi: Tuple[torch.Tensor, ...]):
+
+        r"""
+        the loss of the reference susceptibility
+        the effective magnetic susceptibility is given by
+        $$\chi_{{\rm eff}}=\frac{\chi\left(T\right)}{1-\lambda\chi\left(T\right)}+\chi_{0}$$
+
+        Args:
+            a (torch.Tensor): the parameters tensor, including CEF parameters and $\lambda$ and $\chi_{0}$
+            chi (torch.Tensor): the original theoretical magnetic susceptibility
+
+        Returns:
+            loss (torch.Tensor): the loss.
+            dloss (torch.Tensor): the derivative of the loss.
+        """
+
+        num = a.shape[0]
+        chiexplen = len(self.chidata)
+
+        if chiexplen == 0:
+            raise ValueError('no magnetic susceptibility obtained')
+
+        if num != 2:
+            raise ValueError('only 2 input is needed')
+
+        if not isinstance(a, torch.Tensor):
+            a_ = torch.tensor(a, dtype=torch.float64, requires_grad=True)
+        else:
+            a_ = a.clone().detach().requires_grad_(True)
+
+        chiexp = torch.stack([data.measure for data in self.chidata])
+        chi0 = torch.stack(list(chi))
+
+        chi0_ = chi0 / (1 - a_[0] * chi0) + a_[1]
+
+        loss = torch.mean((chi0_ - chiexp) ** 2)
+        dloss, = torch.autograd.grad(loss, a_)
 
         return loss.detach().numpy(), dloss.detach().numpy()
 
@@ -486,12 +545,58 @@ class Model:
         print("with initial loss :", loss0)
 
         # TODO: is this vaild
-        if bounds is None:
-            bounds = list(zip(-np.ones(a0.shape[0]), np.ones(a0.shape[0])))
+        # if bounds is None:
+        #     bounds = list(zip(-np.ones(a0.shape[0]), np.ones(a0.shape[0])))
 
         res = scipy.optimize.minimize(self.fun_loss,
                                       a0,
                                       args=(weight, eff, in_unit),
+                                      method=method,
+                                      bounds=bounds,
+                                      jac=True, tol=1e-20)
+        return res
+
+    def fit_effectivechi(self,
+                         a0,
+                         in_unit: str = 'exp',
+                         method='L-BFGS-B',
+                         bounds=None):
+        r"""
+        fit the effective parameters of the model
+        Args:
+            a0 (torch.Tensor): the parameters tensor, $\lambda$ and $\chi_{0}$
+            in_unit (str): use the unit in theo (theory) or experiment (exp), default is 'exp'
+            method (str): the method of fitting, default is 'L-BFGS-B'
+            bounds (Tuple[float, float]): the bounds of the parameters, default is None
+
+        Returns:
+            res : the fit results
+
+        """
+
+        if not self.flag_aCEF:
+            raise ValueError("aCEF is not set")
+
+        if in_unit not in ('theo', 'exp'):
+            raise ValueError('the unit of output in the heat specification must be exp or theo')
+
+        chi = ()
+
+        for chidata_id, chidata0 in enumerate(self.chidata):
+            _, chi0 = self.measure_mchi(chidata0.kT,
+                                        chidata0.B0,
+                                        chidata0.axis,
+                                        eff=False,
+                                        in_unit=in_unit)
+
+            chi = chi + (chi0,)
+
+        loss, _ = self.fun_losseffective(a0, chi)
+        print("initial loss :", loss)
+
+        res = scipy.optimize.minimize(self.fun_losseffective,
+                                      a0,
+                                      args=chi,
                                       method=method,
                                       bounds=bounds,
                                       jac=True, tol=1e-20)
