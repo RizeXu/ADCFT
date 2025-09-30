@@ -13,6 +13,7 @@ class MeaData:
         self.measure = None
         self.B0 = None
         self.axis = 'z'
+        self.ω = None
 
     def create(self, kT: torch.Tensor,
                measure: torch.Tensor,
@@ -60,6 +61,37 @@ class MeaData:
         self.measure = torch.from_numpy(data[:, 1])
         self.B0 = B0
         self.axis = axis
+
+        return
+
+    def readINS(self,
+                filename: str,
+                T0: Optional[torch.Tensor|float],
+                B0: Optional[torch.Tensor|float],
+                axis: str = 'z'):
+        r"""
+        create the INS data from file
+        Args:
+            filename (str): the filename
+            T0 (Optional[torch.Tensor|float]): the temperature
+            B0 (Optional[torch.Tensor|float]): the magnetic field
+            axis (str): the axis of the magnetic field
+
+        Returns:
+
+        """
+        if isinstance(T0, float):
+            T0 = torch.tensor([T0])
+
+        if isinstance(B0, float):
+            B0 = torch.tensor([B0])
+
+        data = np.loadtxt(filename)
+        self.kT = T0
+        self.B0 = B0
+        self.axis = axis
+        self.ω = torch.from_numpy(data[:, 0])
+        self.measure = torch.from_numpy(data[:, 1])
 
         return
 

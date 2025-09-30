@@ -15,6 +15,7 @@ zero = torch.tensor([0.0])
 class Model:
     cdata: Tuple[MeaData,...]
     chidata: Tuple[MeaData,...]
+    insdata: Tuple[MeaData,...]
 
     def __init__(self, spin: float, g : torch.Tensor):
         r"""
@@ -29,6 +30,9 @@ class Model:
         self.λ = torch.tensor([0.0])
         self.chi0 = torch.tensor([0.0])
 
+        self.σ = torch.tensor([0.01])
+        self.fac = torch.tensor([1.0])
+
         self.flag_aCEF = False
         self.aCEF = torch.tensor([])
         self.B2 = torch.tensor([])
@@ -37,6 +41,7 @@ class Model:
 
         self.cdata = ()
         self.chidata = ()
+        self.insdata = ()
 
     def _build_fieldx(self, B):
         # x-axis
@@ -300,6 +305,26 @@ class Model:
         chidata_.read(filename, B0, axis)
         self.chidata = self.chidata + (chidata_,)
         return
+
+    def read_insdata(self,
+                     filename: str,
+                     T0: Optional[torch.Tensor|float],
+                     B0: Optional[torch.Tensor|float],
+                     axis: str = 'z'):
+        r"""
+        Read the intensity data from file
+        Args:
+            filename (str): the filename
+            T0 (Optional[torch.Tensor|float]): the temperature
+            B0 (Optional[torch.Tensor|float]): the magnetic field
+            axis (str): the axis of the magnetic field
+        """
+        insdata_ = MeaData()
+        insdata_.readINS(filename, T0, B0, axis)
+        self.insdata = self.insdata + (insdata_,)
+        return
+
+    # def fun_loss
 
     def fun_lossc(self,
                   a: torch.Tensor,
