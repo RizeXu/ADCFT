@@ -6,6 +6,24 @@ from src.Operator import Operator
 from src.EigenSolver import EigenSolver
 from src.unit import unit
 
+def lorentzian(x: torch.Tensor, η: torch.Tensor = torch.tensor(0.01)) -> torch.Tensor:
+    r"""
+    lorentzian, FWHM = 2 η
+    Args:
+        x (torch.Tensor):
+        η (torch.Tensor): the broadening
+
+    Returns:
+
+    """
+    return η / (3.1415926535897932 * (x ** 2 + η ** 2))
+
+def gaussian(x: torch.Tensor, σ: torch.Tensor = torch.tensor(0.01)) -> torch.Tensor:
+    r"""
+    gaussian, $\text{FWHM} = 2\sqrt{2\ln 2} \sigma \approx 2.35482 \sigma$
+    Args:
+        x:
+        σ: the broadening
 
 
 def build_fieldz(B):
@@ -157,7 +175,7 @@ def measure_mchi(op : Operator, kT : torch.Tensor,
                  B4 : torch.Tensor = torch.tensor([]),
                  B6 : torch.Tensor = torch.tensor([])):
     r"""
-    measure the energy and specific heat with steven operators
+    measure the magnetization and magnetic susceptibility with steven operators
     Args:
         op (Operator): the steven operator
         kT (torch.Tensor): the temperature
@@ -183,3 +201,60 @@ def measure_mchi(op : Operator, kT : torch.Tensor,
                                        B4,
                                        B6)
     return m, chi
+
+# TODO: voigt profile
+def measure_DSF(op: Operator, kT: torch.Tensor,
+                ω: torch.Tensor = torch.tensor([]),
+                σ: torch.Tensor = torch.tensor([0.1]),
+                B0: torch.Tensor = torch.tensor([]),
+                field_func: Callable[[torch.Tensor], torch.Tensor] = build_fieldz,
+                B2: torch.Tensor = torch.tensor([]),
+                B4: torch.Tensor = torch.tensor([]),
+                B6: torch.Tensor = torch.tensor([])):
+    r"""
+    measure dynamic structure factor with steven operators
+    Args:
+        op (Operator): the steven operator
+        kT (torch.Tensor): the temperature
+        ω (torch.Tensor): the energy
+        σ (torch.Tensor): the broadening factor
+        B0 (torch.Tensor): the magnetic field
+        field_func (Callable[[torch.Tensor], torch.Tensor]): the field function to map B0 -> g μB B0
+        B2 (torch.Tensor): the coefficient for O[2,m]
+        B4 (torch.Tensor): the coefficient for O[4,m]
+        B6 (torch.Tensor): the coefficient for O[6,m]
+    Returns:
+        DSF (torch.Tensor): the dynamic structure factor
+    """
+
+    B1 = field_func(B0)
+    w, v = solve(op, B1, B2, B4, B6)    # w : energy. v: states
+
+    w = w - w[0]    # δ
+    β = (1 / kT)
+    ωij = w[:, None] - w    # ij
+
+    weight = torch.exp(-β * w)  # i
+    Z = weight.sum()
+
+    Sxx = torch.abs(v.T.conj() @ op.Sx @ v) ** 2
+    Syy = torch.abs(v.T.conj() @ op.Sy @ v) ** 2
+    Szz = torch.abs(v.T.conj() @ op.Sz @ v) ** 2
+
+    Sω = 2 * torch.pi / Z * (Sxx + Syy + Szz) # ij
+
+    DSF = cal_DSF(ω, Sω, ωij, weight, σ)
+
+    return DSF
+
+def cal_DSF0(ω0: torch.Tensor,
+             Sω: torch.Tensor,
+             ωij: torch.Tensor,
+             weight: torch.Tensor,
+             σ : torch.Tensor):
+    δω = gaussian(ω0 + ωij, σ)   # ij
+    num = weight.shape[0]
+    weight = weight.unsqueeze(1).expand(num, num)  # ij
+    return (weight * Sω * δω).sum().sum()
+
+cal_DSF = torch.vmap(cal_DSF0, in_dims=(0, None, None, None, None))
