@@ -25,6 +25,10 @@ def gaussian(x: torch.Tensor, σ: torch.Tensor = torch.tensor(0.01)) -> torch.Te
         x:
         σ: the broadening
 
+    Returns:
+
+    """
+    return  0.39894228040143268 / σ * torch.exp(-0.5 * x **2 / (σ ** 2))
 
 def build_fieldz(B):
     """
